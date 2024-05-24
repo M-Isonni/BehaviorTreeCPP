@@ -2,9 +2,10 @@
 
 
 #include "PerceptionPawn.h"
-#include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISenseConfig_Hearing.h"
+#include "Perception/AIPerceptionStimuliSourceComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 APerceptionPawn::APerceptionPawn()
 {
@@ -29,6 +30,7 @@ APerceptionPawn::APerceptionPawn()
 	//Configure hearing
 	HearingConfig->HearingRange = 600.0f;
 	HearingConfig->LoSHearingRange = 1200.0f;
+	HearingConfig->bUseLoSHearing = true;
 	HearingConfig->SetMaxAge(5.0);
 	HearingConfig->DetectionByAffiliation.bDetectEnemies = true;
 	HearingConfig->DetectionByAffiliation.bDetectNeutrals = true;
@@ -39,6 +41,30 @@ APerceptionPawn::APerceptionPawn()
 	AIPerceptionComponent->SetDominantSense(SightConfig->GetSenseImplementation());
 
 	AIPerceptionComponent->OnPerceptionUpdated.AddDynamic(this, &APerceptionPawn::OnPerceptionUpdated);
+
+
+	//create stimuli source
+	PerceptionStimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>("StimuliSourceComponent");
+
+	//register senses
+	PerceptionStimuliSource->RegisterForSense(TSubclassOf<UAISense_Hearing>());
+	PerceptionStimuliSource->RegisterForSense(TSubclassOf<UAISense_Sight>());
+	PerceptionStimuliSource->RegisterWithPerceptionSystem();
+}
+
+void APerceptionPawn::MakeSomeNoise(float Loudness)
+{
+	//This is heard by AI but doesn't produce a sound that can be heard from the player
+	APawn* NoiseInstigator = Cast<APawn>(this);
+	MakeNoise(Loudness, NoiseInstigator, GetActorLocation());
+
+	//This is not heard by the AI but produces a sound that can be heard from the player
+	FSoftObjectPath SoundAssetPath(TEXT("/Engine/EditorSounds/Notifications/CompileSuccess_Cue.CompileSuccess_Cue"));
+	USoundBase* Sound = Cast<USoundBase>(SoundAssetPath.TryLoad());
+	if (Sound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(GetWorld(), Sound, GetActorLocation());
+	}
 }
 
 void APerceptionPawn::OnPerceptionUpdated(const TArray<AActor*>& UpdatedActors)
